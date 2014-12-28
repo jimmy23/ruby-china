@@ -119,3 +119,7 @@ group :production do
   gem 'newrelic_rpm'
   gem 'newrelic_moped'
 end
+
+gem 'rufus-scheduler'
+
+gem 'daemons'

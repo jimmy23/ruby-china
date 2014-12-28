@@ -35,6 +35,11 @@ class Topic
   # 精华帖 0 否， 1 是
   field :excellent, type: Integer, default: 0
 
+  #周热门分数
+  field :week_score, type: Integer, default:0
+  #24小时热门分数
+  field :hours24_score, type: Integer, default:0
+
   # 临时存储检测用户是否读过的结果
   attr_accessor :read_state
 
@@ -71,6 +76,9 @@ class Topic
   scope :popular, -> { where(:likes_count.gt => 5) }
   scope :without_node_ids, Proc.new { |ids| where(:node_id.nin => ids) }
   scope :excellent, -> { where(:excellent.gte => 1) }
+  #周，小时热门
+  scope :week_score, -> {desc(:week_score)}
+  scope :hours24_score, -> {desc(:hours24_score)}
 
   def self.find_by_message_id(message_id)
     where(message_id: message_id).first
