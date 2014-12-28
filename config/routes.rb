@@ -58,6 +58,8 @@ Rails.application.routes.draw do
       get :excellent
       get :feed, defaults: { format: 'xml' }
       post :preview
+      get :week_hot
+      get :hours24_hot
     end
     resources :replies
   end

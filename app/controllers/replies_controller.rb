@@ -12,6 +12,8 @@ class RepliesController < ApplicationController
     if @reply.save
       current_user.read_topic(@topic)
       @msg = t('topics.reply_success')
+      #记录某天某小时topic回复数到redis
+      set_replynum_to_redis
     else
       @msg = @reply.errors.full_messages.join('<br />')
     end
@@ -48,5 +50,35 @@ class RepliesController < ApplicationController
 
   def reply_params
     params.require(:reply).permit(:body)
+  end
+
+  def set_replynum_to_redis
+    now = Time.now
+    str_date = now.to_date.to_s
+    str_hour = now.hour.to_s
+
+    #查询此topic的key是否存在
+    key = $redis.get("topic_#{@topic.id}_replynum_#{str_date}")
+    if key
+      topic = JSON.load(key)
+      
+      #小时时间段
+      hour = topic["#{str_hour}"]
+      #小时时间段里存在，直接加1，不存在则赋值1
+      if hour
+        topic["#{str_hour}"] += 1
+      else
+        topic["#{str_hour}"] = 1
+      end     
+
+      #更新key,设置过期时间为7天后
+      $redis.set("topic_#{@topic.id}_replynum_#{str_date}",JSON.dump(topic))
+      $redis.expire("topic_#{@topic.id}_replynum_#{str_date}",604800)
+    else
+      topic_hash = {"#{str_hour}" => 1}
+
+      $redis.set("topic_#{@topic.id}_replynum_#{str_date}",JSON.dump(topic_hash))
+      $redis.expire("topic_#{@topic.id}_replynum_#{str_date}",604800)
+    end
   end
 end
