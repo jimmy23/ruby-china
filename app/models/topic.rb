@@ -77,8 +77,8 @@ class Topic
   scope :without_node_ids, Proc.new { |ids| where(:node_id.nin => ids) }
   scope :excellent, -> { where(:excellent.gte => 1) }
   #周，小时热门
-  scope :week_score, -> {desc(:week_score)}
-  scope :hours24_score, -> {desc(:hours24_score)}
+  scope :week_score, -> {desc(:week_score).limit(100)}
+  scope :hours24_score, -> {desc(:hours24_score).limit(100)}
 
   def self.find_by_message_id(message_id)
     where(message_id: message_id).first
