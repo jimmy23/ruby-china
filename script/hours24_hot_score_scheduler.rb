@@ -1,12 +1,44 @@
 require File.expand_path('../../config/environment',__FILE__)
 require 'rufus/scheduler'
-require 'json'
 
 s = Rufus::Scheduler.new
 
-def compute_hours24_hot_score
-    today = Time.now
-    current_hour = Time.now.hour
+#每10分钟跑一次
+def min10_active
+    now = Time.now
+    
+    ids = $redis.smembers("10min_active_topics")
+    $redis.expire("10min_active_topics",0)
+
+    ids.each do |id|
+      score = 0
+      num = 24
+
+      0.upto(23) do |i|
+        date = (now - i.hour).to_date
+        hour = (now - i.hour).hour
+        readnum,replynum = 0,0
+
+        readkey = "topic_#{id}_readnum_#{date}"
+        readnum = $redis.hget(readkey,hour).to_i if $redis.hget(readkey,hour)
+
+        replykey = "topic_#{id}_replynum_#{date}"
+        replynum = $redis.hget(replykey,hour).to_i if $redis.hget(replykey,hour)
+        
+        score += (readnum + replynum * 3) * num
+        num -= 1
+      end
+
+      t = Topic.find(id)
+      t.hours24_score = score
+      t.save
+    end
+
+end
+
+#每一小时跑一次
+def hours24_active
+    now = Time.now
     
     topics = Topic.all
 
@@ -15,43 +47,44 @@ def compute_hours24_hot_score
       num = 24
 
       0.upto(23) do |i|
-        str_date = (today - i.hour).to_date
-        str_hour = (today - i.hour).hour.to_s
-        # puts "date: #{str_date}, hour: #{str_hour}, i: #{i}"
-        readsum,replysum = 0,0
-        readkey = $redis.get("topic_#{t.id}_readnum_#{str_date}")
-        if readkey
-          readdata = JSON.load(readkey)
-          readsum = readdata["#{str_hour}"] ? readdata["#{str_hour}"] : 0
-        end
-        replykey = $redis.get("topic_#{t.id}_replynum_#{str_date}")
-        if replykey
-          replydata = JSON.load(replykey)
-          replysum = replydata["#{str_hour}"] ? replydata["#{str_hour}"] : 0
-        end
+        date = (now - i.hour).to_date
+        hour = (now - i.hour).hour
+        readnum,replynum = 0,0
 
-        score += (readsum + replysum * 3) * num
+        readkey = "topic_#{t.id}_readnum_#{date}"
+        readnum = $redis.hget(readkey,hour).to_i if $redis.hget(readkey,hour)
+
+        replykey = "topic_#{t.id}_replynum_#{date}"
+        replynum = $redis.hget(replykey,hour).to_i if $redis.hget(replykey,hour)
+        
+        score += (readnum + replynum * 3) * num
         num -= 1
       end
 
-      # puts score
       t.hours24_score = score
       t.save
     end
 end
 
-s.every '10m' do
-  begin
-    logger ||= Logger.new(File.join(File.expand_path("../../log", __FILE__), 'hours24_hot_score.log'))
-    logger.info "start"
-    compute_hours24_hot_score
-    logger.info "end"
-  rescue  => e
-    logger_error ||= Logger.new(File.join(File.expand_path("../../log", __FILE__), 'hours24_hot_score_error.log'))
-    logger_error.info Time.now
-    logger_error.info "#{e.class} #{e.message}"
-    logger_error.info e.backtrace.join("\n")
+begin
+  logger ||= Logger.new(File.join(File.expand_path("../../log", __FILE__), 'hours24_hot_score.log'))
+
+  s.every '10m' do
+      logger.info "start min10_active"
+      min10_active
+      logger.info "end min10_active"
   end
+
+  s.every '1h' do
+      logger.info "start hours24_active"
+      hours24_active
+      logger.info "end hours24_active"
+  end
+rescue  => e
+  logger_error ||= Logger.new(File.join(File.expand_path("../../log", __FILE__), 'hours24_hot_score_error.log'))
+  logger_error.info Time.now
+  logger_error.info "#{e.class} #{e.message}"
+  logger_error.info e.backtrace.join("\n")
 end
 
 s.join

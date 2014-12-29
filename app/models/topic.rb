@@ -168,4 +168,35 @@ class Topic
   def excellent?
     self.excellent >= 1
   end
+
+  def incr_readnum
+    str_date,hour = get_date_and_hour
+    key = "topic_#{self.id}_readnum_#{str_date}"
+    $redis.hincrby(key,hour,1)
+    set_expire_time(key)
+    $redis.sadd("hour_active_topics", self.id)
+    $redis.sadd("10min_active_topics", self.id)
+  end
+
+  def incr_replynum
+    str_date,hour = get_date_and_hour
+    key = "topic_#{self.id}_replynum_#{str_date}"
+    $redis.hincrby(key,hour,1)
+    set_expire_time(key)
+    $redis.sadd("hour_active_topics", self.id)
+    $redis.sadd("10min_active_topics", self.id)
+  end
+
+  def get_date_and_hour
+    now = Time.now
+    str_date = now.to_date.to_s
+    hour = now.hour
+    return str_date,hour
+  end
+
+  def set_expire_time(key)
+    if $redis.ttl(key) == -1
+       $redis.expire(key,604800)
+    end
+  end
 end

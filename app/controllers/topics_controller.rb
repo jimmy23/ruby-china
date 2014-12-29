@@ -1,5 +1,5 @@
 # coding: utf-8
-require 'json'
+# require 'json'
 
 class TopicsController < ApplicationController
   load_and_authorize_resource only: [:new, :edit, :create, :update, :destroy,
@@ -78,42 +78,12 @@ class TopicsController < ApplicationController
     
     check_current_user_status_for_topic
     set_special_node_active_menu
-    #记录某天某小时阅读数到redis
-    set_readnum_to_redis
+    #记录阅读数到redis
+    @topic.incr_readnum
 
     set_seo_meta "#{@topic.title} &raquo; #{t("menu.topics")}"
 
     fresh_when(etag: [@topic, @has_followed, @has_favorited, @replies, @node, @show_raw])
-  end
-
-  def set_readnum_to_redis
-    now = Time.now
-    str_date = now.to_date.to_s
-    str_hour = now.hour.to_s
-
-    #查询此topic的key是否存在
-    key = $redis.get("topic_#{@topic.id}_readnum_#{str_date}")
-    if key
-      topic = JSON.load(key)
-      
-      #小时时间段
-      hour = topic["#{str_hour}"]
-      #小时时间段里存在，直接加1，不存在则赋值1
-      if hour
-        topic["#{str_hour}"] += 1
-      else
-        topic["#{str_hour}"] = 1
-      end     
-
-      #更新key,设置过期时间为7天后
-      $redis.set("topic_#{@topic.id}_readnum_#{str_date}",JSON.dump(topic))
-      $redis.expire("topic_#{@topic.id}_readnum_#{str_date}",604800)
-    else
-      topic_hash = {"#{str_hour}" => 1}
-
-      $redis.set("topic_#{@topic.id}_readnum_#{str_date}",JSON.dump(topic_hash))
-      $redis.expire("topic_#{@topic.id}_readnum_#{str_date}",604800)
-    end
   end
   
   def check_current_user_status_for_topic
